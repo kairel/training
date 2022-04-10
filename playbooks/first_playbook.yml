@@ -1,0 +1,12 @@
+---
+
+  - hosts: michael
+
+    tasks:
+
+      - name: Create first file
+        file:
+          path: /tmp/first_playbook.txt
+          state: touch
+
+

@@ -1,0 +1,61 @@
+---
+
+  - hosts: fail2ban
+
+    tasks:
+
+      - name: Install fail2ban
+        apt:
+          pkg:
+            - fail2ban
+          state: present
+          allow_unauthenticated: yes
+        become: yes
+
+      - name: Add service to list service
+        ansible.builtin.systemd:
+          enabled: yes
+          name: fail2ban.service
+          daemon_reload : yes
+        become: yes
+
+      - name: check if fail2banis installed
+        stat: 
+          path: /etc/fail2ban/jail.conf
+        register: jail_file
+
+      - name:     Insert/Update alias and history
+        lineinfile:
+          path:   '/etc/fail2ban/jail.conf'
+          regexp: '.*ignoreip ='
+          line:   ignoreip = {{ ip_list }}
+        become:   yes
+        when: jail_file.stat.exists == true
+
+      - name: Insert/Update "Log4j" configuration block in /etc/fail2ban/jail.conf
+        blockinfile:
+          path: /etc/fail2ban/jail.conf
+          block: |
+            [log4j-jndi]
+            maxretry = 1
+            enabled = true
+            port = 80,443
+            logpath = /var/log/fail2ban.log
+        when: is_log4j_vulnerable is defined
+
+      - name: Log4j filter
+        template:
+          src: '{{ templates_path }}/shared/fail2ban/log4j-jndi.conf.j2'
+          dest: /etc/fail2ban/filter.d/log4j-jndi.conf
+        become: yes
+        when: is_log4j_vulnerable is defined
+
+
+      - name:     Reload fail2ban service
+        service:
+          name:   fail2ban
+          state:  restarted
+        become:   yes
+        when: jail_file.stat.exists == true
+
+
