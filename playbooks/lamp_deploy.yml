@@ -1,0 +1,128 @@
+---
+
+  - hosts: asr
+
+    tasks:
+
+      #Optional set timezone if necessary
+      - name: set timezone
+        command:
+          cmd: 'timedatectl set-timezone Europe/Brussels'
+        become: yes
+        when: just_for_work is defined
+
+      # USER & SYSTEM----------------------------
+      - name: Create user if not exist
+        user:
+          name: '{{ user }}'
+          shell: /bin/bash
+          comment: user for app casr
+          generate_ssh_key: yes
+          group: sudo
+        become: yes
+
+      - name: Create group
+        group:
+          name: '{{ group }}'
+          state: present
+        become: yes
+
+      - name: Insert/Update alias and history
+        blockinfile:
+          path: '/home/{{ user }}/.bashrc'
+          block: |
+            alias ll='ls -ailh'
+            export HISTTIMEFORMAT='%x %T '
+        become: yes
+
+      - name: Add sourcelist for fix bug debian 10 europe
+        template:
+          src: '{{ templates_path }}/shared/debian/10/sources.list.j2'
+          dest: '/etc/apt/sources.list'
+        become: yes
+        when: just_for_work is defined
+
+      # Package + RVM----------------------------
+
+      - name: Install curl , gpg, apache, mariadb
+        apt:
+          pkg:
+            - curl
+            - gpg
+            - apache
+            - pmariadb
+            - python-setuptools
+            - python-virtualenv
+            - python-ipaddress
+            - gawk
+            - autoconf
+            - automake
+            - bison
+            - pkg-config
+            - sqlite
+            - git
+            - php
+          update_cache: yes
+        become: yes
+
+      
+
+      # Create directory ----------------------------
+
+
+      - name: Create log directory
+        ansible.builtin.file:
+          path: '{{ log_directory }}/{{ application_name }}'
+          state: directory
+          mode: '0755'
+          owner: '{{ user }}'
+          group: '{{ group }}'
+        become: yes
+
+      - name: Create a log symbolic link
+        ansible.builtin.file:
+          src:  '{{ log_directory }}/{{ application_name }}'
+          dest: '/home/{{ user }}/{{ app_name }}/{{ log_path }}'
+          mode: '0755'
+          owner: '{{ user }}'
+          group: '{{ group }}'
+          state: link
+        become: yes
+
+      # Postgres ----------------------------
+
+      - name: configure pg_hba
+        postgresql_pg_hba:
+          dest: /etc/postgresql/11/main/pg_hba.conf
+          contype: local
+          users: postgres
+          databases: all
+          method: trust
+        become: yes
+
+      - name: Reload service postgres
+        service:
+          name: postgresql
+          state: reloaded
+        become: yes
+
+      - name: Create pg user
+        community.postgresql.postgresql_user:
+          name: '{{ pg_username }}'
+          password: '{{ pg_passwd }}'
+          role_attr_flags: SUPERUSER
+
+      - name: Create a new database
+        community.postgresql.postgresql_db:
+          name: '{{ pg_database }}'
+        become: yes
+        become_user: '{{ user }}'
+
+      - name: Re-assign database owner
+        postgresql_owner:
+          db: '{{ pg_database }}'
+          new_owner: '{{ pg_username}}'
+          obj_name: '{{ pg_database }}'
+          obj_type: database
+
+
