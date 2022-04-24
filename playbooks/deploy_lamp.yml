@@ -1,0 +1,168 @@
+---
+
+  - hosts: webserver
+
+    tasks:
+
+      #Timezone
+      - name: set timezone
+        command:
+          cmd: 'timedatectl set-timezone Europe/Brussels'
+        become: yes
+
+      # User & sytem conf
+      - name: Create user if not exist
+        user:
+          name: '{{ user }}'
+          shell: /bin/bash
+          comment: user for app asr
+          generate_ssh_key: yes
+          group: sudo
+        become: yes
+
+      - name: Set user sudo without password
+        template:
+          src: 'sudoer_user.j2'
+          dest: '/etc/sudoers.d/{{ user }}'
+        become: yes
+
+      - name: Create group
+        group:
+          name: '{{ group }}'
+          state: present
+        become: yes
+
+      - name: Insert/Update alias and history
+        blockinfile:
+          path: '/home/{{ user }}/.bashrc'
+          block: |
+            alias ll='ls -ailh'
+            export HISTTIMEFORMAT='%x %T '
+        become: yes
+
+      - name: Install curl , gpg, apache, mariadb
+        apt:
+          pkg:
+            - curl
+            - gpg
+            - nginx
+            - postgresql
+            - python3-setuptools
+            - python3-virtualenv
+            - python3-psycopg2
+            - gawk
+            - autoconf
+            - automake
+            - bison
+            - pkg-config
+            - sqlite3
+            - git
+            - libpq-dev
+            - apache2
+            - php
+            - libapache2-mod-php
+          update_cache: yes
+        become: yes
+
+    # Add level services
+
+      - name: Add service postgresql to list service
+        ansible.builtin.systemd:
+          enabled: yes
+          name: postgresql@13-main.service
+          daemon_reload : yes
+        become: yes
+
+      - name: Add service apache2 to list service
+        ansible.builtin.systemd:
+          enabled: yes
+          name: apache2.service
+          daemon_reload : yes
+        become: yes
+
+    # Configure postgres
+
+      - name: configure pg_hba
+        postgresql_pg_hba:
+          dest: /etc/postgresql/13/main/pg_hba.conf
+          contype: local
+          users: postgres
+          databases: all
+          method: trust
+        become: yes
+
+      - name: Reload service postgres
+        service:
+          name: postgresql
+          state: reloaded
+        become: yes
+
+      - name: Create pg user
+        community.postgresql.postgresql_user:
+          name: '{{ db_user }}'
+          password: '{{ db_password }}'
+          role_attr_flags: SUPERUSER
+
+      - name: Create a new database
+        community.postgresql.postgresql_db:
+          name: '{{ db_database }}'
+        become: yes
+
+      - name: Re-assign database owner
+        postgresql_owner:
+          db: '{{ db_database }}'
+          new_owner: '{{ db_user}}'
+          obj_name: '{{ db_database }}'
+          obj_type: database
+
+      - name: Create table
+        postgresql_table:
+          db: '{{ db_database }}'
+          name: '{{ db_table_name }}'
+          columns:
+            - id bigserial primary key
+            - nom text
+            - mail text
+          owner: '{{ db_user }}'
+
+      - name: Insert query 
+        postgresql_query:
+          db: '{{ db_database }}'
+          query: "INSERT INTO {{ db_table_name }} ( nom, mail) VALUES ( 'michael','michael@gmail.com' )"
+
+      - name: Create site path directory
+        ansible.builtin.file:
+          path: '{{ site_path }}'
+          state: directory
+          mode: '0755'
+          owner: '{{ user }}'
+          group: '{{ apache_group }}'
+        become: yes
+
+      - name: Copy template path
+        template:
+          src: 'asr.conf.j2'
+          dest: '/etc/apache2/sites-available/asr.conf'
+        become: yes
+
+      - name: a2ensite asr
+        command: a2ensite asr
+        become: yes
+
+      - name: Reload service apache
+        service:
+          name: apache2
+          state: reloaded
+        become: yes
+
+      - name: wait_for http 
+        shell: "curl --silent localhost --insecure --head | head -n1"
+        register: result
+        until: result.stdout.find("HTTP/2 200") != -1
+        retries: 40
+        delay: 2
+
+        
+  
+
+

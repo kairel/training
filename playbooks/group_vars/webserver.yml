@@ -1,0 +1,8 @@
+user:  asr
+group: gasr
+apache_group: www-data
+db_user: asr
+db_password: asr
+db_database: asr_blog
+db_table_name: users
+site_path: /var/www/html/asr_blog
