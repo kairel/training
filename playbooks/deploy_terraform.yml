@@ -1,0 +1,62 @@
+---
+
+  - hosts: terraform
+
+    tasks:
+    
+    #Package
+    - name: Install package 
+      apt:
+        pkg:
+          - unzip
+          - qemu
+          - libvirt-daemon-system
+          - libvirt-clients
+          - libxslt-dev
+          - libxml2-dev
+          - libvirt-dev
+          - zlib1g-dev
+          - ruby-dev
+          - ruby-libvirt
+          - ebtables
+          - dnsmasq-base
+          - build-essential
+      become: yes
+
+    #Terraform 
+    - name: Download terraform
+      get_url:
+        url: https://releases.hashicorp.com/terraform/1.1.9/terraform_1.1.9_linux_amd64.zip
+        dest: /tmp/terraform_1.1.9_linux_amd64.zip
+    
+    - name: Extract terraform into /usr/local/bin/terraform
+      unarchive:
+        src: /tmp/terraform_1.1.9_linux_amd64.zip
+        dest: /usr/local/bin/
+        remote_src: yes 
+      become: yes
+
+    #Vagrant 
+    - name: Download vagrant
+      get_url:
+        url: https://releases.hashicorp.com/vagrant/2.2.19/vagrant_2.2.19_x86_64.deb
+        dest: /tmp/vagrant_2.2.19_x86_64.deb
+    
+    - name: Install vagrant .deb package
+      apt:
+        deb: /tmp/vagrant_2.2.19_x86_64.deb
+
+    - name: Install plugin vagrant-libvirt 
+      shell: "vagrant plugin install vagrant-libvirt"
+
+    - name: Install plugin vagrant-mutate 
+      shell: "vagrant plugin install vagrant-mutate"
+
+    - name: add user to libvirt group 
+      shell: "adduser debian libvirt"
+      become: yes
+
+        
+  
+
+
