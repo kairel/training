@@ -1,0 +1,4 @@
+.tfvars
+.backup
+.hcl
+.terraform
