@@ -1,2 +1,6 @@
 [webserver]
 127.0.0.1 ansible_port=2222 ansible_user=vagrant ansible_python_interpreter=/usr/bin/python3
+[terraform]
+51.75.198.121 ansible_user=debian ansible_ssh_private_key_file=/Users/malveslobo/.ssh/devops_id_rsa
+[new_server]
+172.18.100.54=ansible_ssh_private_key_file=/Users/malveslobo/.ssh/devops_id_rsa
